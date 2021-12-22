@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, send_from_directory
+from keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
 from tensorflow.keras.models import load_model
 import numpy as np
 import os
@@ -6,20 +7,22 @@ import cv2
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = './static/uploads/'
-model = load_model('ModelBinary.h5')
+model = load_model('Model_Categorical_Fixed.h5')
 
-class_dict = {0:'WithMask', 1:'WithoutMask'}
 
 def predict_label(img_path):
-    query = cv2.imread(img_path)
-    output = query.copy()
-    query = cv2.resize(query, (100, 100))
-    q = []
-    q.append(query)
-    q = np.array(q, dtype='float') / 255.0
-    q_pred = model.predict(q)
-    predicted_bit = int(q_pred)
-    return class_dict[predicted_bit]
+    x = load_img(img_path, target_size=(100,100))
+    x = img_to_array(x)
+    x = np.expand_dims(x, axis=0)
+    array = model.predict(x)
+    result = array[0]
+    answer = np.argmax(result)
+    if answer == 0:
+        print("Label: WithMask")
+    elif answer == 1:
+	    print("Label: WithoutMask")
+    return answer
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -28,7 +31,12 @@ def index():
             image = request.files['image']
             img_path = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
             image.save(img_path)
-            prediction = predict_label(img_path)
+            result = predict_label(img_path)
+            if result == 0:
+                prediction = 'WithMask'
+            elif result == 1:
+                prediction = 'WithoutMask'	
+                		
             return render_template('index.html', uploaded_image=image.filename, prediction=prediction)
 
     return render_template('index.html')
